@@ -19,30 +19,17 @@ class SimilarityService:
         self.token = token
         self.base = base
         self.service = self.base + '/flame.kh.svc/api/v1/'
-        #self.space = 'clinicaltrialspa_RDKit_properties'
-        self.space = 'faerspa_RDKit_properties'
-        self.headers = {
-            "Authorization": f"Bearer {self.token}",
-        }
+        self.space = 'faerspa_morganFP'
+        self.headers = {"Authorization": f"Bearer {self.token}"}
 
     def ready(self):
         r = requests.get(self.service + 'ready', verify=False, headers=self.headers)
         return r.status_code == 200
         
-    def get(self, smile, nr_results=10, cutoff=0.7):
-        fo = tempfile.NamedTemporaryFile()
-        m = Chem.MolFromSmiles(smile)
-        w = Chem.SDWriter(fo.name)
-        w.write(m)
-        w.flush()
-        w.close()
+    def get(self, smile, nr_results=10, cutoff=0.5):
 
-        url = self.service + 'search/space/' + self.space + '/version/0?numsel=' + str(nr_results) + '&cutoff=' + str(cutoff)
-        files = {
-            'SDF': (os.path.basename(fo.name), open(fo.name, 'rb'))
-        }
-
-        r = requests.put(verify=False, url=url, headers=self.headers, files=files)
+        url = self.service + 'search/space/' + self.space + '/version/0/smiles?numsel=' + str(nr_results) + '&cutoff=' + str(cutoff)
+        r = requests.put(verify=False, url=url, headers=self.headers, data={'SMILES': smile})
 
         # get the results from the backend
         if r.status_code == 200:
@@ -50,11 +37,12 @@ class SimilarityService:
             
             while True:
                 r2 = requests.get(self.service + 'smanage/search/' + search_id, verify=False, headers=self.headers)
+                print(f'status_code:{r2.status_code}')
                 if r2.status_code == 200:
                     return json.loads(r2.text)
-                elif r2.status_code == 500:
+                elif r2.status_code == 500 or r2.status_code == 404:
                     # wait a few seconds before trying next time
-                    time.sleep(2)
+                    time.sleep(1)
                 else:
                     print(f"failed getting results for {search_id}:{r2.status_code}")
                     return None

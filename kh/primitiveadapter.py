@@ -65,13 +65,7 @@ class PrimitiveAdapter:
             "Limit": 100
         }
 
-        r = requests.post(self.endpoint,
-                          verify=False,
-                          headers={
-                              "Authorization": f"Bearer {self.token}"
-                          },
-                          json=json_data
-                          )
+        r = requests.post(self.endpoint + 'query', verify=False, headers={"Authorization": f"Bearer {self.token}"}, json=json_data)
 
         if r.status_code == 200:
             return json.loads(r.text)
@@ -79,11 +73,29 @@ class PrimitiveAdapter:
             print(f"Cannot search in {self.endpoint}: {r.status_code}")
             return None
 
+    #
+    # retrieve all unique compounds using the data endpoint
+    #
+    def getAllCompounds(self):
+        result = []
+
+        r = requests.get(self.endpoint + 'count', verify=False, params={'dataClassKey': 'COMPOUND'}, headers={"Authorization": f"Bearer {self.token}"})
+        if r.status_code == 200:
+            for offset in range(0, int(r.text), 1000):
+                r = requests.get(self.endpoint + 'data', params={'dataClassKey': 'COMPOUND', 'limit': 1000, 'offset': offset}, verify=False, headers={"Authorization": f"Bearer {self.token}"})
+
+                if r.status_code == 200:
+                    for compound in json.loads(r.text):
+                        result.append(compound)
+                else:
+                    print(f"Cannot retrieve compoundIds from {self.endpoint}: {r.status_code}")
+
+        return result
+
     # 
     #  retrieve the compound identifiers from the COMPOUND index using the names 
     #  as values. Repeat the query as long as we get limit records
     #
-
     def getCompoundIdsByNames(self, names):
         result = [];
 
@@ -121,27 +133,21 @@ class PrimitiveAdapter:
         query['offset'] = 0
         query['limit'] = 100
         while True:
-            r = requests.post(self.endpoint,
-                              verify=False,
-                              headers={
-                                  "Authorization": f"Bearer {self.token}"
-                              },
-                              json=query
-                              )
+            r = requests.post(self.endpoint + 'query', verify=False, headers={"Authorization": f"Bearer {self.token}"}, json=query)
 
             if r.status_code == 200:
                 response = json.loads(r.text)
                 data = response['resultData']['data']
                 for compound in data:
-                    compoundId = compound['COMPOUND']['id']
-                    if compoundId not in result:
-                        result.append(compoundId)
-                nrrecords = len(data)
+                    compound_id = compound['COMPOUND']['id']
+                    if compound_id not in result:
+                        result.append(compound_id)
+                nr_records = len(data)
             else:
                 print(f"Cannot retrieve compoundIds from {self.endpoint}: {r.status_code}")
-                nrrecords = 0
+                nr_records = 0
 
-            if nrrecords < query['limit']:
+            if nr_records < query['limit']:
                 break
             else:
                 query['offset'] += query['limit']
@@ -151,78 +157,66 @@ class PrimitiveAdapter:
     def getStudiesByCompoundNames(self, compoundNames):
         result = []
 
-        compoundIds = self.getCompoundIdsByNames(compoundNames)
+        compound_ids = self.getCompoundIdsByNames(compoundNames)
 
         if len(compoundNames) > 0:
-            query = {
-                "searchConcept": {
-                    "concepts": None,
-                    "targetConceptGroups": None
-                },
-                "filter": {
-                    "criteria": [
-                        [
-                            {
-                                "field": {
-                                    "dataClassKey": "COMPOUND",
-                                    "name": "id"
-                                },
-                                "primitiveType": "Integer",
-                                "comparisonOperator": "IN",
-                                "values": []
-                            }
-                        ]
+            query = {"searchConcept": {
+                "concepts": None,
+                "targetConceptGroups": None
+            }, "filter": {
+                "criteria": [
+                    [
+                        {
+                            "field": {
+                                "dataClassKey": "COMPOUND",
+                                "name": "id"
+                            },
+                            "primitiveType": "Integer",
+                            "comparisonOperator": "IN",
+                            "values": []
+                        }
+                    ]
+                ]
+            }, "selectedFields": [
+                {
+                    "dataClassKey": "FINDING",
+                    "names": [
+                        # "id",
+                        "specimenOrgan",
+                        "finding",
+                        "findingCode",
+                        "findingVocabulary"
                     ]
                 },
-                "selectedFields": [
-                    {
-                        "dataClassKey": "FINDING",
-                        "names": [
-                            # "id",
-                            "specimenOrgan",
-                            "finding",
-                            "findingCode",
-                            "findingVocabulary"
-                        ]
-                    },
-                    {
-                        "dataClassKey": "COMPOUND",
-                        "names": [
-                            "name",
-                            "compoundIdentifier",
-                        ]
-                    }
-                ]
-            }
+                {
+                    "dataClassKey": "COMPOUND",
+                    "names": [
+                        "name",
+                        "compoundIdentifier",
+                    ]
+                }
+            ], 'offset': 0, 'limit': 1000}
 
-            query['offset'] = 0;
-            query['limit'] = 1000;
-            for compoundId in compoundIds:
+            for compoundId in compound_ids:
                 query['filter']['criteria'][0][0]['values'].append({'value': compoundId})
 
             while True:
-                r = requests.post(self.endpoint,
-                                  verify=False,
-                                  headers={
-                                      "Authorization": f"Bearer {self.token}"
-                                  },
-                                  json=query
-                                  )
+                r = requests.post(self.endpoint + 'query', verify=False, headers={"Authorization": f"Bearer {self.token}"}, json=query)
 
                 if r.status_code == 200:
                     response = json.loads(r.text)
                     if query['offset'] == 0:
                         total = response['resultData']['total']
 
-                    nrrecords = len(response['resultData']['data'])
+                    record_count = len(response['resultData']['data'])
                     for record in response['resultData']['data']:
                         record['source'] = response['origin']
                         result.append(record)
 
                 else:
-                    nrrecords = 0
+                    record_count = 0
 
-                if nrrecords < query['limit']:
+                if record_count < query['limit']:
                     break
 
                 query['offset'] += query['limit']
@@ -234,82 +228,67 @@ class PrimitiveAdapter:
     #
     # This method retrieves compounds from the database by its identifier
     # 
-    def getStudiesByCompoundIds(self, compoundIds):
+    def getStudiesByCompoundIds(self, compound_ids):
         result = []
 
-        if len(compoundIds) > 0:
-            query = {
-                "searchConcept": {
-                    "concepts": None,
-                    "targetConceptGroups": None
-                },
-                "filter": {
-                    "criteria": [
-                        [
-                            {
-                                "field": {
-                                    "dataClassKey": "COMPOUND",
-                                    "name": "compoundIdentifier"
-                                },
-                                "primitiveType": "String",
-                                "comparisonOperator": "IN",
-                                "caseSensitive": "True",
-                                "values": []
-                            }
-                        ]
+        if len(compound_ids) > 0:
+            query = {"searchConcept": {
+                "concepts": None,
+                "targetConceptGroups": None
+            }, "filter": {
+                "criteria": [
+                    [
+                        {
+                            "field": {
+                                "dataClassKey": "COMPOUND",
+                                "name": "compoundIdentifier"
+                            },
+                            "primitiveType": "String",
+                            "comparisonOperator": "IN",
+                            "caseSensitive": "True",
+                            "values": []
+                        }
+                    ]
+                ]
+            }, "selectedFields": [
+                {
+                    "dataClassKey": "FINDING",
+                    "names": [
+                        "specimenOrgan",
+                        "finding",
+                        "findingCode",
+                        "findingVocabulary"
                     ]
                 },
-                "selectedFields": [
-                    {
-                        "dataClassKey": "FINDING",
-                        "names": [
-                            "specimenOrgan",
-                            "finding",
-                            "findingCode",
-                            "findingVocabulary"
-                        ]
-                    },
-                    {
-                        "dataClassKey": "COMPOUND",
-                        "names": [
-                            "name",
-                            "compoundIdentifier",
-                        ]
-                    }
-                ]
-            }
+                {
+                    "dataClassKey": "COMPOUND",
+                    "names": [
+                        "name",
+                        "compoundIdentifier",
+                    ]
+                }
+            ], 'offset': 0, 'limit': 1000}
 
-            query['offset'] = 0;
-            query['limit'] = 1000;
-            for compoundId in compoundIds:
-                query['filter']['criteria'][0][0]['values'].append({'value': compoundId})
+            for compound_id in compound_ids:
+                query['filter']['criteria'][0][0]['values'].append({'value': compound_id})
 
             while True:
-                r = requests.post(self.endpoint,
-                                  verify=False,
-                                  headers={
-                                      "Authorization": f"Bearer {self.token}"
-                                  },
-                                  json=query
-                                  )
+                r = requests.post(self.endpoint + 'query', verify=False, headers={"Authorization": f"Bearer {self.token}"}, json=query)
 
                 if r.status_code == 200:
                     response = json.loads(r.text)
                     if query['offset'] == 0:
                         total = response['resultData']['total']
-                        # print(f'retrieving {total} records');
 
-                    # print(f'retrieving {query["offset"]} of {total} {response["origin"]} records')
-
-                    nrrecords = len(response['resultData']['data'])
+                    record_count = len(response['resultData']['data'])
                     for record in response['resultData']['data']:
                         record['source'] = response['origin']
                         result.append(record)
 
                 else:
-                    nrrecords = 0
+                    record_count = 0
 
-                if nrrecords < query['limit']:
+                if record_count < query['limit']:
                     break
 
                 query['offset'] += query['limit']

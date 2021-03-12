@@ -11,31 +11,37 @@ def main():
 
     studies = api.eToxSys().getStudiesByCompoundNames(['omeprazole'])
     print(f'#studies:{len(studies)}')
+    #print(studies[0])
+
+    findings_per_specimen_organ = {}
+
     for study in studies:
-        source = study['source']
-        if source != 'eTOXsys' or study['FINDING']['finding'] != 'No abnormalities detected':
+        if study['FINDING']['finding'] != None and study['FINDING']['finding'] != 'No abnormalities detected' and len(study['FINDING']['finding']) > 0:
             specimenOrgans = api.SemanticService().getSocs(study['FINDING']['specimenOrgan'])
             for specimenOrgan in specimenOrgans:
                 if len(specimenOrgan) > 0:
-                    if specimenOrgan not in socs:
-                        socs[specimenOrgan] = {}
-                    else:
-                        finding = study['FINDING']['finding']
-                        if finding not in socs[specimenOrgan]:
-                            socs[specimenOrgan][finding] = 1
-                        else:
-                            socs[specimenOrgan][finding] += 1
+                    finding = study['FINDING']['specimenOrgan']
+
+                    if specimenOrgan not in findings_per_specimen_organ:
+                        findings_per_specimen_organ[specimenOrgan] = []
+                    if finding not in findings_per_specimen_organ[specimenOrgan]:
+                        findings_per_specimen_organ[specimenOrgan].append(finding)
+
+    for specimen_organ in findings_per_specimen_organ:
+        print(f'{specimen_organ}: {len(findings_per_specimen_organ[specimen_organ])}')
+        for finding in findings_per_specimen_organ[specimen_organ]:
+            print('     ' + finding)
 
     # for specimenOrgan in socs.keys():
     #     specimenOrgan
     #     for finding in socs[specimenOrgan]:
     #         print(f'{specimenOrgan}:{finding}:{socs[specimenOrgan][finding]}')
 
-    # specific specimen organ and finding
-    for study in studies:
-        for specimenOrgan in api.SemanticService().getSocs(study['FINDING']['specimenOrgan']):
-            if specimenOrgan == 'Gastrointestinal disorders':
-                print(f'Gastrointestinal disorders({study["FINDING"]["specimenOrgan"]}):{study["FINDING"]["finding"]}')
+    # # specific specimen organ and finding
+    # for study in studies:
+    #     for specimenOrgan in api.SemanticService().getSocs(study['FINDING']['specimenOrgan']):
+    #         if specimenOrgan == 'Gastrointestinal disorders':
+    #             print(f'Gastrointestinal disorders({study["FINDING"]["specimenOrgan"]}):{study["FINDING"]["finding"]}')
 
 if __name__ == "__main__":
     main()

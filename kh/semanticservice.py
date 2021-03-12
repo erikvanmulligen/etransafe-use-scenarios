@@ -147,3 +147,6 @@ class SemanticService:
                     if not organ == 'Excluded term':
                         result.append(organ)
         return result
+
+    def getSoc(self, organ):
+        return self.etoxSocs[organ] if organ in self.etoxSocs else organ
