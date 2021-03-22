@@ -92,6 +92,24 @@ class PrimitiveAdapter:
 
         return result
 
+    #
+    # retrieve all adverse events using the data endpoint
+    #
+    def getAllFindings(self):
+        result = []
+
+        r = requests.get(self.endpoint + 'count', verify=False, params={'dataClassKey': 'FINDING'}, headers={"Authorization": f"Bearer {self.token}"})
+        if r.status_code == 200:
+            for offset in range(0, int(r.text), 1000):
+                r = requests.get(self.endpoint + 'data', params={'dataClassKey': 'FINDING', 'limit': 1000, 'offset': offset}, verify=False, headers={"Authorization": f"Bearer {self.token}"})
+
+                if r.status_code == 200:
+                    for finding in json.loads(r.text):
+                        result.append(finding)
+                else:
+                    print(f"Cannot retrieve findings from {self.endpoint}: {r.status_code}")
+
+        return result
     # 
     #  retrieve the compound identifiers from the COMPOUND index using the names 
     #  as values. Repeat the query as long as we get limit records

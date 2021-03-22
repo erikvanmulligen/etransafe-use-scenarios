@@ -1,25 +1,23 @@
 import streamlit as st
+from state import provide_state
+import sys
+sys.path.insert(1, '../kh')
+from api import KnowledgeHubAPI
 
-# Add a selectbox to the sidebar:
-add_selectbox = st.sidebar.selectbox(
-    'How would you like to be contacted?',
-    ('Email', 'Home phone', 'Mobile phone')
-)
 
-# Add a slider to the sidebar:
-add_slider = st.sidebar.slider(
-    'Select a range of values',
-    0.0, 100.0, (25.0, 75.0)
-)
+@provide_state
+def main(state):
+    api = KnowledgeHubAPI()
+    state.inputs = state.inputs or set()
 
-# Add a slider to the sidebar:
-add_slider2 = st.sidebar.slider(
-    'Select a range of values2',
-    0.0, 100.0, (25.0, 75.0)
-)
+    input_string = st.text_input("Give inputs")
+    state.inputs.add(input_string)
+    terms = api.SemanticService().lookup(input_string, "HPATH")
+    state.inputs.clear()
+    for term in terms:
+        state.inputs.add(term)
 
-st.selectbox('Select', [1,2,3])
+    st.selectbox("Select Dynamic", options=list(state.inputs))
 
-text_field = st.text('Fixed width text')
 
-text_field2 = st.text('Fixed width text2')
+main()
