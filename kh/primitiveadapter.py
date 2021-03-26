@@ -101,8 +101,8 @@ class PrimitiveAdapter:
         r = requests.get(self.endpoint + 'count', verify=False, params={'dataClassKey': 'FINDING'}, headers={"Authorization": f"Bearer {self.token}"})
         if r.status_code == 200:
             for offset in range(0, int(r.text), 1000):
+                print(f'retrieving records {offset}-{offset+1000}...')
                 r = requests.get(self.endpoint + 'data', params={'dataClassKey': 'FINDING', 'limit': 1000, 'offset': offset}, verify=False, headers={"Authorization": f"Bearer {self.token}"})
-
                 if r.status_code == 200:
                     for finding in json.loads(r.text):
                         result.append(finding)

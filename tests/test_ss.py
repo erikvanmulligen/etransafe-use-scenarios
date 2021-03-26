@@ -4,7 +4,8 @@ from kh.api import KnowledgeHubAPI
 
 def test():
 	api = KnowledgeHubAPI()
-	api.login('erik.mulligen', 'Crosby99!')
+	status = api.login('erik.mulligen', 'Crosby99!')
+	print(status)
 	#terms = api.SemanticService().lookup('Terbinafine', 'RxNorm')
 	#print(json.dumps(terms, indent=4, sort_keys=True))
 	#if len(terms['terms']) > 0:
@@ -28,9 +29,9 @@ def test():
 					 #api.Faers().getStudiesByCompoundNames(compounds) + \
 					 #api.ClinicalTrials().getStudiesByCompoundNames(compounds) + \
 
-	studies = api.eToxSys().getStudiesByCompoundNames(compounds)
-	print(json.dumps(studies, indent=4, sort_keys=True))
-	print(len(studies))
+	# studies = api.eToxSys().getStudiesByCompoundNames(compounds)
+	# print(json.dumps(studies, indent=4, sort_keys=True))
+	# print(len(studies))
 
 if __name__ == "__main__":
     test()

@@ -37,7 +37,6 @@ class SimilarityService:
             
             while True:
                 r2 = requests.get(self.service + 'smanage/search/' + search_id, verify=False, headers=self.headers)
-                print(f'status_code:{r2.status_code}')
                 if r2.status_code == 200:
                     return json.loads(r2.text)
                 elif r2.status_code == 500 or r2.status_code == 404:
