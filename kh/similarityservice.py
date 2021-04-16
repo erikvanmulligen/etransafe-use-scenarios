@@ -14,13 +14,13 @@ from rdkit import Chem
 
 class SimilarityService:
     
-    def __init__(self, token, base):
+    def __init__(self, api, base):
         urllib3.disable_warnings()
-        self.token = token
+        self.api = api
         self.base = base
         self.service = self.base + '/flame.kh.svc/api/v1/'
         self.space = 'faerspa_morganFP'
-        self.headers = {"Authorization": f"Bearer {self.token}"}
+        self.headers = {"Authorization": f"Bearer {self.api.get_token()}"}
 
     def ready(self):
         r = requests.get(self.service + 'ready', verify=False, headers=self.headers)

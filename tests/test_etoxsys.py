@@ -6,10 +6,12 @@ from kh.api import KnowledgeHubAPI
 
 def main():
     api = KnowledgeHubAPI()
+    api.login('erik.mulligen', 'Crosby99!')
 
     socs = {}
 
-    studies = api.eToxSys().getStudiesByCompoundNames(['omeprazole'])
+    #studies = api.eToxSys().getStudiesByCompoundNames(['omeprazole'])
+    studies = api.eToxSys().getStudiesByCompoundIds(['COc1ccc2[nH]c([S+]([O-])Cc3ncc(C)c(OC)c3C)nc2c1'])
     print(f'#studies:{len(studies)}')
     #print(studies[0])
 

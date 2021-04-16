@@ -93,19 +93,23 @@ class SemanticService:
         'Lymph node': 'Blood and lymphatic system disorders',
     }
 
-    def __init__(self, token, base):
+    def __init__(self, api, base):
         urllib3.disable_warnings()
-        self.token = token
+        self.api = api
         self.service = base + "/api/semanticservice/v1/"
-        self.headers = {"Authorization": f"Bearer {self.token}"}
+
+    def get_token(self):
+        return self.api.get_token()
 
     def lookup(self, inputTerm, vocabularies):
         params = {'query': inputTerm, 'vocabularies': vocabularies, 'count': 20}
         tries = 0
         while tries < 5:
-            r = requests.get(self.service + "concept/lookup?" + urllib.parse.urlencode(params), verify=False, headers=self.headers)
+            r = requests.get(self.service + "concept/lookup?" + urllib.parse.urlencode(params), verify=False, headers={"Authorization": f"Bearer {self.get_token()}"})
             if r.status_code == 200:
                 return json.loads(r.text)
+            elif r.status_code == 401:
+                self.api.reconnect()
             else:
                 time.sleep(2)
                 tries += 1
@@ -118,20 +122,22 @@ class SemanticService:
         params = {'term': term}
         tries = 0
         while tries < 5:
-            r = requests.get(self.service + 'concept/normalize?' + urllib.parse.urlencode(params) + vocstr, verify=False, headers=self.headers)
+            r = requests.get(self.service + 'concept/normalize?' + urllib.parse.urlencode(params) + vocstr, verify=False, headers={"Authorization": f"Bearer {self.get_token()}"})
             if r.status_code == 200:
                 return json.loads(r.text)
+            elif r.status_code == 401:
+                self.api.reconnect()
             else:
                 time.sleep(2)
                 tries += 1
         return None
 
     def concept(self, conceptId):
-        res = str(conceptId)
-        print(res)
-        r = requests.get(self.service + 'concept/' + res, verify=False, headers=self.headers)
+        r = requests.get(self.service + 'concept/' + conceptId, verify=False, headers={"Authorization": f"Bearer {self.get_token()}"})
         if r.status_code == 200:
             return json.loads(r.text)
+        elif r.status_code == 401:
+            self.api.reconnect()
         else:
             return None
     

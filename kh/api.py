@@ -1,6 +1,7 @@
 import json
 import requests
 import urllib3
+import sys
 from kh import semanticservice
 from kh import similarityservice
 from kh import primitiveadapter
@@ -46,6 +47,8 @@ class Service:
 
 
 class KnowledgeHubAPI:
+    username = None
+    password = None
     ss = None
     medline = None
     faers = None
@@ -84,6 +87,8 @@ class KnowledgeHubAPI:
         return self.services[self.service].get_base()
 
     def login(self, username, password):
+        self.username = username
+        self.password = password
         data = {'grant_type': 'password', 'username': username, 'password': password, 'client_id': 'knowledge-hub', 'client_secret': self.get_client_secret()}
         r = requests.post(f'{self.get_keycloak()}/auth/realms/KH/protocol/openid-connect/token', verify=False, data=data)
 
@@ -94,33 +99,39 @@ class KnowledgeHubAPI:
 
         return r.status_code == 200
 
+    def reconnect(self):
+        status = self.login(self.username, self.password)
+        if status == False:
+            print('failed to reconnect')
+            sys.exit()
+
     def SemanticService(self):
         if self.ss is None:
-            self.ss = semanticservice.SemanticService(self.get_token(), self.get_base())
+            self.ss = semanticservice.SemanticService(self, self.get_base())
         return self.ss
 
     def SimilarityService(self):
         if self.simsrv is None:
-            self.simsrv = similarityservice.SimilarityService(self.get_token(), self.get_base())
+            self.simsrv = similarityservice.SimilarityService(self, self.get_base())
         return self.simsrv
 
     def Medline(self):
         if self.medline is None:
-            self.medline = primitiveadapter.PrimitiveAdapter(self.get_token(), self.get_base() + "/medlinepa.kh.svc/primitive-adapter/v1/")
+            self.medline = primitiveadapter.PrimitiveAdapter(self, self.get_base() + "/medlinepa.kh.svc/primitive-adapter/v1/")
         return self.medline
 
     def Faers(self):
         if self.faers is None:
-            self.faers = primitiveadapter.PrimitiveAdapter(self.get_token(), self.get_base() + "/faerspa.kh.svc/primitive-adapter/v1/")
+            self.faers = primitiveadapter.PrimitiveAdapter(self, self.get_base() + "/faerspa.kh.svc/primitive-adapter/v1/")
 
         return self.faers
 
     def ClinicalTrials(self):
         if self.clinicaltrials is None:
-            self.clinicaltrials = primitiveadapter.PrimitiveAdapter(self.get_token(), self.get_base() + "/clinicaltrialspa.kh.svc/primitive-adapter/v1/")
+            self.clinicaltrials = primitiveadapter.PrimitiveAdapter(self, self.get_base() + "/clinicaltrialspa.kh.svc/primitive-adapter/v1/")
         return self.clinicaltrials
 
     def eToxSys(self):
         if self.etoxsys is None:
-            self.etoxsys = primitiveadapter.PrimitiveAdapter(self.get_token(), self.get_base() + "/etoxsyspa.kh.svc/preclinical-platform/api/etoxsys-pa/v1/")
+            self.etoxsys = primitiveadapter.PrimitiveAdapter(self, self.get_base() + "/etoxsyspa.kh.svc/preclinical-platform/api/etoxsys-pa/v1/")
         return self.etoxsys
