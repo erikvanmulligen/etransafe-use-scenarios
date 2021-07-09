@@ -1,16 +1,20 @@
 import unittest
-from kh.services import Services
-from kh.api import KnowledgeHubAPI
+from knowledgehub.services import Services
+from knowledgehub.api import KnowledgeHubAPI
+import argparse
 
 
 class ServiceTest(unittest.TestCase):
     services = None
+    username = None
+    password = None
 
-    def setUp(self):
+    def setUp(self, username, password):
         super(ServiceTest, self).setUp()
         api = KnowledgeHubAPI()
-        api.login('erik.mulligen', 'Crosby99!')
-        self.services = Services(api.get_token(), 'https://aead2da1a152644f797ca358c0975f8e-1350926270.eu-west-1.elb.amazonaws.com/registry.kh.svc/api/v1')
+        api.set_service('DEV')
+        api.login(self.username, self.password)
+        self.services = Services(api.get_token(), 'https://dev.toxhub.etransafe.eu/registry.kh.svc/api/v1')
 
     def test(self):
         databases = self.services.get('database')
@@ -20,8 +24,14 @@ class ServiceTest(unittest.TestCase):
 
     def tearDown(self):
         super(ServiceTest, self).tearDown()
-        #self.mock_data = []
 
 
 if __name__ == '__main__':
-    unittest.main()
+    parser = argparse.ArgumentParser(description='Process parameters for collecting information about services')
+    parser.add_argument('-username', required=True, help='username')
+    parser.add_argument('-password', required=True, help='password')
+    args = parser.parse_args()
+    print(args)
+    ServiceTest.username = args.username
+    ServiceTest.password = args.password
+    unittest.main('tester' 'tester')

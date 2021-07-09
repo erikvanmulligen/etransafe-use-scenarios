@@ -1,9 +1,9 @@
-from kh.api import KnowledgeHubAPI
+from knowledgehub.api import KnowledgeHubAPI
 
 
 def main():
     api = KnowledgeHubAPI()
-    terms = api.SemanticService().lookup('hyper', ['HPATH','MEDDRA'])
+    terms = api.SemanticService().lookup('inflamm', 'HPATH')
     print(terms)
 
 

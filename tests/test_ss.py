@@ -1,13 +1,20 @@
 import json
-from kh.api import KnowledgeHubAPI
+from knowledgehub.api import KnowledgeHubAPI
+import argparse
 
 
 def test():
+	parser = argparse.ArgumentParser(description='test similarity service')
+	parser.add_argument('-username', required=True, help='username')
+	parser.add_argument('-password', required=True, help='password')
+	args = parser.parse_args()
+
 	api = KnowledgeHubAPI()
-	status = api.login('erik.mulligen', 'Crosby99!')
+	api.set_service('DEV')
+	status = api.login(args.username, args.password)
 	print(status)
-	#terms = api.SemanticService().lookup('Terbinafine', 'RxNorm')
-	#print(json.dumps(terms, indent=4, sort_keys=True))
+	terms = api.SemanticService().lookup('Terbinafine', 'RxNorm')
+	print(json.dumps(terms, indent=4, sort_keys=True))
 	#if len(terms['terms']) > 0:
 		#concepts = api.SemanticService().normalize(terms['terms'][0], 'RxNorm')
 		#print(json.dumps(concepts, indent=4, sort_keys=True))
@@ -32,6 +39,7 @@ def test():
 	# studies = api.eToxSys().getStudiesByCompoundNames(compounds)
 	# print(json.dumps(studies, indent=4, sort_keys=True))
 	# print(len(studies))
+
 
 if __name__ == "__main__":
     test()
