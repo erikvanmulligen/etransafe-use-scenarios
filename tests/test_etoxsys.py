@@ -12,13 +12,13 @@ def main():
     parser.add_argument('-password', required=True, help='password')
     args = parser.parse_args()
 
-    api = KnowledgeHubAPI()
+    api = KnowledgeHubAPI(server='DEV', client_secret='3db5a6d7-4694-48a4-8a2e-e9c30d78f9ab')
     api.login(args.username, args.password)
 
     socs = {}
 
-    #studies = api.eToxSys().getStudiesByCompoundNames(['omeprazole'])
-    studies = api.eToxSys().getStudiesByCompoundIds(['COc1ccc2[nH]c([S+]([O-])Cc3ncc(C)c(OC)c3C)nc2c1'])
+    studies = api.eToxSys().getStudiesByCompoundNames(['omeprazole'])
+    #studies = api.eToxSys().getStudiesBySMILES(['COc1ccc2[nH]c([S+]([O-])Cc3ncc(C)c(OC)c3C)nc2c1'])
     print(f'#studies:{len(studies)}')
     #print(studies[0])
 

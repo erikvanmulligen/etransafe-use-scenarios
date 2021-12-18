@@ -11,14 +11,14 @@ def main():
 
     api = KnowledgeHubAPI()
     api.set_server('DEV')
-    api = KnowledgeHubAPI(server='DEV', client_secret='3db5a6d7-4694-48a4-8a2e-e9c30d78f9ab')
-    print('before login')
-    api.login('tester', 'tester')
-    print('after login')
+    api = KnowledgeHubAPI(server='TEST', client_secret='39c644b3-1f23-4d94-a71f-e0fb43ebd760')
+    api.login('e.vanmulligen@erasmusmc.nl', 'Crosby99!')
     status = api.SimilarityService().spaces()
     print(f'status={status}')
-    omeprazole = 'CCC1=C(C)CN(C(=O)NCCC2=CC=C(C=C2)S(=O)(=O)NC(=O)NC2CCC(C)CC2)C1-Cl'
+    omeprazole = 'COc1ccc2[nH]c([S+]([O-])Cc3ncc(C)c(OC)c3C)nc2c1'
+    # omeprazole = 'CCC1=C(C)CN(C(=O)NCCC2=CC=C(C=C2)S(=O)(=O)NC(=O)NC2CCC(C)CC2)C1-Cl'
     similar_compounds = api.SimilarityService().get(omeprazole)
+
     pprint.pprint(similar_compounds)
 
 

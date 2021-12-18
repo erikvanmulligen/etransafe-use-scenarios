@@ -6,16 +6,13 @@ from src.knowledgehub.api import KnowledgeHubAPI
 
 
 def main():
-    api = KnowledgeHubAPI()
-    api.set_service('DEV')
-    api.login('tester', 'tester')
+    api = KnowledgeHubAPI(server='TEST', client_secret='39c644b3-1f23-4d94-a71f-e0fb43ebd760')
+    #api = KnowledgeHubAPI(server='DEV', client_secret='3db5a6d7-4694-48a4-8a2e-e9c30d78f9ab')
+    api.login('erik.mulligen', 'Crosby99!')
 
     omeprazole = 'CCC1=C(C)CN(C(=O)NCCC2=CC=C(C=C2)S(=O)(=O)NC(=O)NC2CCC(C)CC2)C1-Cl'
 
-    count = api.ChemistryService().getCompoundCount()
-    print(count)
-
-    smiles = api.ChemistryService().getSMILESbyNames(['Fingolimod'])
+    smiles = api.ChemistryService().getCompoundByName('Fingolimod')
     print(smiles)
 
     # recid = 0

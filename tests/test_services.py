@@ -9,12 +9,12 @@ class ServiceTest(unittest.TestCase):
     username = None
     password = None
 
-    def setUp(self, username, password):
+    def setUp(self):
         super(ServiceTest, self).setUp()
         api = KnowledgeHubAPI()
-        api.set_service('DEV')
+        api.set_server('DEV')
         api.login(self.username, self.password)
-        self.services = Services(api.get_token(), 'https://dev.toxhub.etransafe.eu/registry.kh.svc/api/v1')
+        self.services = Services(api, 'https://dev.toxhub.etransafe.eu/registry.kh.svc/api/v1')
 
     def test(self):
         databases = self.services.get('database')
@@ -27,11 +27,11 @@ class ServiceTest(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Process parameters for collecting information about services')
-    parser.add_argument('-username', required=True, help='username')
-    parser.add_argument('-password', required=True, help='password')
-    args = parser.parse_args()
-    print(args)
-    ServiceTest.username = args.username
-    ServiceTest.password = args.password
-    unittest.main('tester' 'tester')
+    # parser = argparse.ArgumentParser(description='Process parameters for collecting information about services')
+    # parser.add_argument('-username', required=True, help='username')
+    # parser.add_argument('-password', required=True, help='password')
+    # args = parser.parse_args()
+    # print(args)
+    ServiceTest.username = 'tester'
+    ServiceTest.password = 'tester'
+    unittest.main()

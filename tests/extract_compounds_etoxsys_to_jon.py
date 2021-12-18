@@ -2,8 +2,9 @@
 This is a module to test what data comes back from eToxSys
 '''
 
-from kh.api import KnowledgeHubAPI
+from src.knowledgehub.api import KnowledgeHubAPI
 import argparse
+
 
 def main():
     parser = argparse.ArgumentParser(description='Process parameters for collecting findings from primitive adapter')
@@ -11,7 +12,7 @@ def main():
     parser.add_argument('-password', required=True, help='password')
     args = parser.parse_args()
 
-    api = KnowledgeHubAPI()
+    api = KnowledgeHubAPI('TEST', )
     api.login(args.username, args.password)
 
     socs = {}

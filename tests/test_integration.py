@@ -19,7 +19,7 @@
 import argparse
 from pprint import pprint
 from src.knowledgehub.api import KnowledgeHubAPI
-
+import os
 
 def main():
     parser = argparse.ArgumentParser(description='Process parameters for retrieving data from primitive adapters')
@@ -28,11 +28,17 @@ def main():
     parser.add_argument('-pa', required=True, help='primitive adapter')
     args = parser.parse_args()
 
-    api = KnowledgeHubAPI(server='DEV', client_secret='3db5a6d7-4694-48a4-8a2e-e9c30d78f9ab')
+    #api = KnowledgeHubAPI(server='DEV', client_secret='3db5a6d7-4694-48a4-8a2e-e9c30d78f9ab')
+    api = KnowledgeHubAPI(server='TEST', client_secret='39c644b3-1f23-4d94-a71f-e0fb43ebd760')
     api.login(args.username, args.password)
 
+    service_names = []
     for service in api.Services().get():
-        print(service['title'])
+        print(service)
+        service_names.append({'name': os.path.splitext(os.path.splitext(os.path.basename(service['address']))[0])[0], 'title': service['title']})
+
+    print(service_names)
+    exit(0)
 
     print(api.SemanticService().expand(concept_name='edema', vocabularies=[]))
 
