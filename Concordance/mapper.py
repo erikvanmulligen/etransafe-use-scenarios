@@ -1,3 +1,5 @@
+import math
+
 
 class Mapper:
     cacheToClinical = None
@@ -21,30 +23,35 @@ class Mapper:
             map_list = []
             key = self.getKey(finding)
             if key not in self.cacheToClinical:
-                mappings = self.api.SemanticService().mapToClinical(finding['code'], finding['organCode'])
+                mappings = self.api.SemanticService().mapToClinical(finding['findingCode'], finding['specimenOrganCode'])
                 if mappings is not None:
                     for item in mappings:
-                        map_list += [{'code': concept['conceptCode']} for concept in item['concepts']]
+                        map_list += [{'findingCode': concept['conceptCode'], 'distance': int(math.fabs(item['distance']))} for concept in item['concepts']]
                     self.cacheToClinical[key] = map_list
                 else:
                     self.cacheToClinical[key] = []
             result[key] = self.cacheToClinical[key]
         return result
 
+    def __getOrgan(self, finding):
+        if 'specimenOrganCode' in finding and finding['specimenOrganCode'] is not None:
+            return finding['specimenOrganCode'].split(',')[0]
+        else:
+            return None
+
     def getKey(self, finding):
         if 'findingCode' in finding:
             try:
-                specimenOrganCode = finding['specimenOrganCode'] if 'specimenOrganCode' in finding and finding['specimenOrganCode'] is not None and len(finding['specimenOrganCode']) > 0 else None
+                specimenOrganCode = self.__getOrgan(finding)
                 return finding['findingCode'] + ('/' + specimenOrganCode if specimenOrganCode is not None else '')
             except Exception as e:
                 print(f'error2:{e}')
         else:
             try:
-                specimenOrganCode = finding[1] if finding[1] is not None and len(finding[1]) > 0 else None
+                specimenOrganCode = finding[1].split(',')[0] if finding[1] is not None and len(finding[1]) > 0 else None
                 return finding[0] + ('/' + specimenOrganCode if specimenOrganCode is not None else '')
             except Exception as e:
-                print(f'error:{e}')
-
+                print(f'error1:{e}')
 
     def mapToPreclinical(self, findings):
         result = {}
