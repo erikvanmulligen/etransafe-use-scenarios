@@ -57,13 +57,13 @@ def main():
         for database in preclinicalDatabases:
             print('with findings from...' + database)
             preclinical_findings = preclinicalDatabases[database].getAllFindingByIds(drug[database])
-        storeFindings(db, table="preclinical_findings", findings=preclinical_findings, treatmentRelated=True)
+            storeFindings(db, table="preclinical_findings", findings=preclinical_findings, treatmentRelated=True)
 
         for database in clinicalDatabases:
             print('with findings from...' + database)
             if database in drug and drug[database] is not None:
                 clinical_findings = clinicalDatabases[database].getAllFindingByIds(drug[database])
-        storeFindings(db, table="clinical_findings", findings=clinical_findings, treatmentRelated=False)
+                storeFindings(db, table="clinical_findings", findings=clinical_findings, treatmentRelated=False)
 
     print('find SOCS for clinical findings unknown SOCs to the database')
     cursor = db.cursor()
@@ -132,7 +132,6 @@ def main():
         values = [item['distance'] for item in mapped_clinical_findings[preclinical_code]]
         value = min(values) if len(values) > 0 else -1
 
-        sql = ""
         if normalizePreclinicalField['findingCode'] is not None and len(normalizePreclinicalField['findingCode']) > 0:
             if normalizePreclinicalField['specimenOrganCode'] is not None:
                 sql = "UPDATE preclinical_findings SET mapped = " + str(value) + " WHERE findingCode = '" + normalizePreclinicalField['findingCode'] + "' AND specimenOrganCode = '" + normalizePreclinicalField['specimenOrganCode'] + "'"
@@ -164,11 +163,12 @@ def storeFindings(db, table, findings, treatmentRelated):
         finding = finding['FINDING']
         if 'finding' in finding and finding['finding'] != 'No abnormalities detected' and finding['finding'] != 'Nothing abnormal detected' and \
                 finding['finding'] != 'Microscopic comment' and finding['finding'] != 'Not examined/not present':
-            if finding['dose'] != 0 and (treatmentRelated is False or finding['treatmentRelated'] is not False):
+            if finding['dose'] != 0:
+            #if finding['dose'] != 0 and (treatmentRelated is False or (finding['treatmentRelated'] is not False and finding['treatmentRelated'] is not None)):
                 records.append((finding['id'], finding['findingIdentifier'], finding['specimenOrgan'], finding['specimenOrganCode'],
                                 finding['specimenOrganVocabulary'], finding['finding'], finding['findingCode'], finding['findingVocabulary'],
                                 finding['findingType'], finding['severity'], finding['observation'], finding['frequency'], finding['dose'], finding['doseUnit'],
-                                finding['timepoint'], finding['timepointUnit'], finding['treatmentRelated'], finding['compoundId'], finding['studyId'],
+                                finding['timepoint'], finding['timepointUnit'], finding['treatmentRelated'] is not False and finding['treatmentRelated'] is not None, finding['compoundId'], finding['studyId'],
                                 convertTimestamp(finding['createdDate']), convertTimestamp(finding['modifiedDate']), finding['sex']))
             else:
                 print(f'skip control group {finding["dose"]} or non treatment related finding {finding["treatmentRelated"]}')

@@ -50,21 +50,24 @@ def main():
     ClinicalDatabases = getClinicalDatabases(api);
     PreclinicalDatabases = getPreclinicalDatabases(api)
     groups = {}
+
+    preclinical_findings = {}
+    clinical_findings = {}
+    for drug in drugs:
+        preclinical_findings[drug] = getSocDrugFindings(db=db, drugInfo=drugs[drug], databases=PreclinicalDatabases.keys(), table='preclinical_findings')
+        clinical_findings[drug] = getSocDrugFindings(db=db, drugInfo=drugs[drug], databases=ClinicalDatabases.keys(), table='clinical_findings')
+
     # get first the list of SOCs
-    socs = getSocs(db, ['preclinical_findings', 'clinical_findings'])
-    for soc in socs:
+    for soc in getSocs(db, ['preclinical_findings', 'clinical_findings']):
         groups[soc] = {'tp': 0, 'fp': 0, 'fn': 0, 'tn': 0}
         for drug in drugs:
-            preclinical_findings = getSocDrugFindings(db=db, soc=soc, drugInfo=drugs[drug], databases=PreclinicalDatabases.keys(), table='preclinical_findings')
-            clinical_findings = getSocDrugFindings(db=db, soc=soc, drugInfo=drugs[drug], databases=ClinicalDatabases.keys(), table='clinical_findings')
-
-            if len(preclinical_findings) > 0:
-                if len(clinical_findings) > 0:
+            if soc in preclinical_findings[drug]:
+                if soc in clinical_findings[drug]:
                     groups[soc]['tp'] += 1
                 else:
                     groups[soc]['fp'] += 1
             else:
-                if len(clinical_findings) > 0:
+                if soc in clinical_findings[drug]:
                     groups[soc]['fn'] += 1
                 else:
                     groups[soc]['tn'] += 1

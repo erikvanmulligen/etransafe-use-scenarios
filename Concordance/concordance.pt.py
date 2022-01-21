@@ -7,7 +7,8 @@ import os
 import sys
 import mysql.connector
 
-from Concordance.condordance_utils import getDrugsMapping, getClinicalDatabases, getPreclinicalDatabases, getSocs, getSocDrugFindings
+from Concordance.condordance_utils import getDrugsMapping, getClinicalDatabases, getPreclinicalDatabases, getSocs, getSocDrugFindings, getMedDRA_PTs, getPTDrugFindings, getNamePT, getAllDrugFindings, \
+    getAllPTFindings, getAllPreClinicalClinicalPTs
 from Concordance.mapper import Mapper
 
 
@@ -49,28 +50,34 @@ def main():
 
     ClinicalDatabases = getClinicalDatabases(api);
     PreclinicalDatabases = getPreclinicalDatabases(api)
+
     groups = {}
     # get first the list of SOCs
-    socs = getSocs(db, ['preclinical_findings', 'clinical_findings'])
-    for soc in socs:
-        groups[soc] = {'tp': 0, 'fp': 0, 'fn': 0, 'tn': 0}
+
+    preclinical_pts = {}
+    clinical_pts = {}
+    for drug in drugs:
+        preclinical_pts[drug] = getPTDrugFindings(db=db, drugInfo=drugs[drug], databases=PreclinicalDatabases.keys(), table='preclinical_meddra')
+        clinical_pts[drug] = getPTDrugFindings(db=db, drugInfo=drugs[drug], databases=ClinicalDatabases.keys(), table='clinical_meddra')
+
+    c = 0
+    all_preclinical_clinical_pts = getAllPreClinicalClinicalPTs(db=db, tables=['preclinical_meddra','clinical_meddra'])
+    for pt in all_preclinical_clinical_pts:
+        c += 1
+        print(f'{c}/{len(all_preclinical_clinical_pts)}: {pt}')
+        groups[pt] = {'tp': 0, 'fp': 0, 'fn': 0, 'tn': 0}
         for drug in drugs:
-            preclinical_findings = getSocDrugFindings(db=db, soc=soc, drugInfo=drugs[drug], databases=PreclinicalDatabases.keys(), table='preclinical_findings')
-            clinical_findings = getSocDrugFindings(db=db, soc=soc, drugInfo=drugs[drug], databases=ClinicalDatabases.keys(), table='clinical_findings')
 
-            if len(preclinical_findings) > 0:
-                if len(clinical_findings) > 0:
-                    groups[soc]['tp'] += 1
+            if pt in preclinical_pts[drug]:
+                if pt in clinical_pts[drug]:
+                    groups[pt]['tp'] += 1
                 else:
-                    groups[soc]['fp'] += 1
+                    groups[pt]['fp'] += 1
             else:
-                if len(clinical_findings) > 0:
-                    groups[soc]['fn'] += 1
+                if pt in clinical_pts[drug]:
+                    groups[pt]['fn'] += 1
                 else:
-                    groups[soc]['tn'] += 1
-
-        print(soc)
-        pprint(groups[soc])
+                    groups[pt]['tn'] += 1
 
 
 if __name__ == "__main__":

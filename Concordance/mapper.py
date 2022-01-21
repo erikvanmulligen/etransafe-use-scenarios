@@ -26,7 +26,7 @@ class Mapper:
                 mappings = self.api.SemanticService().mapToClinical(finding['findingCode'], finding['specimenOrganCode'])
                 if mappings is not None:
                     for item in mappings:
-                        map_list += [{'findingCode': concept['conceptCode'], 'distance': int(math.fabs(item['distance']))} for concept in item['concepts']]
+                        map_list += [{'name': concept['conceptName'], 'findingCode': concept['conceptCode'], 'distance': int(math.fabs(item['distance']))} for concept in item['concepts']]
                     self.cacheToClinical[key] = map_list
                 else:
                     self.cacheToClinical[key] = []

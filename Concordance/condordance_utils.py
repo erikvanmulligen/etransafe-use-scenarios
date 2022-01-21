@@ -9,23 +9,58 @@ def getClinicalDatabases(api):
         'DailyMed': api.DailyMed()
     }
 
+
 def getPreclinicalDatabases(api):
     return {
         'eToxSys': api.eToxSys()
     }
 
 
-def getSocDrugFindings(db, soc, drugInfo, databases, table):
-    ids = []
+def getPTDrugFindings(db, drugInfo, databases, table):
+    fids = []
     for database in databases:
         if database in drugInfo and drugInfo[database] is not None:
-            ids += drugInfo[database]
+            fids += drugInfo[database]
 
-    if len(ids) > 0:
-        return getAllFindings(db=db, table=table, where=f'where SOC="{soc}" and mapped > -1 and id in ({",".join([str(id) for id in ids])})')
+    if len(fids) > 0:
+        cursor = db.cursor()
+        cursor.execute(f'SELECT PTCode FROM {table} where id in ({",".join([str(fid) for fid in fids])})')
+        return [r[0] for r in cursor.fetchall()]
     else:
         return []
 
+def getAllDrugFindings(db, drugInfo, databases, table):
+    fids = []
+    for database in databases:
+        if database in drugInfo and drugInfo[database] is not None:
+            fids += drugInfo[database]
+
+    if len(fids) > 0:
+        cursor = db.cursor()
+        cursor.execute(f'SELECT PTCode FROM {table} where id in ({",".join([str(fid) for fid in fids])})')
+        return [r[0] for r in cursor.fetchall()]
+    else:
+        return []
+
+
+def getSocDrugFindings(db, drugInfo, databases, table):
+    fids = []
+    for database in databases:
+        if database in drugInfo and drugInfo[database] is not None:
+            fids += drugInfo[database]
+
+    if len(fids) > 0:
+        cursor = db.cursor()
+        cursor.execute(f'SELECT distinct SOC FROM {table} WHERE mapped > -1 AND id IN ({",".join([str(fid) for fid in fids])})')
+        return [r[0] for r in cursor.fetchall()]
+    else:
+        return []
+
+
+def getAllPTFindings(db, table):
+    cursor = db.cursor()
+    cursor.execute(f'SELECT distinct PTCode FROM {table}')
+    return [r[0] for r in cursor.fetchall()]
 
 def getAllFindings(db, table, where):
     cursor = db.cursor()
@@ -55,8 +90,45 @@ def getDrugs(api, filename):
                 drug_file.write(json.dumps(drugs))
     return drugs
 
+
 def normalizePreclinicalFields(records):
-    return [{'findingCode':r[0], 'specimenOrganCode': r[1]} for r in records]
+    return [{'findingCode': r[0], 'specimenOrganCode': r[1]} for r in records]
+
+
+def intersection(lst1, lst2):
+    lst3 = [value for value in lst1 if value in lst2]
+    return lst3
+
+
+def getMedDRA_PTs(db, tables):
+    result = []
+    cursor = db.cursor()
+    for table in tables:
+        cursor.execute(f'SELECT distinct PTCode FROM {table}')
+        result += [pt[0] for pt in cursor.fetchall()]
+
+    return list(set(result))
+
+
+def getAllPreClinicalClinicalPTs(db, tables):
+    result = None
+    cursor = db.cursor()
+    for table in tables:
+        cursor.execute(f'SELECT distinct PTCode FROM {table}')
+        records = [pt[0] for pt in cursor.fetchall()]
+        result = intersection(result, records) if result is not None else records
+
+    return result
+
+
+def getNamePT(db, tables, pt):
+    cursor = db.cursor()
+    for table in tables:
+        cursor.execute(f'SELECT distinct name FROM {table} WHERE PTCode={pt}')
+        records = cursor.fetchall();
+        if len(records) > 0:
+            return records[0][0]
+    return None
 
 
 def getSocs(db, tables):
@@ -154,6 +226,7 @@ def getCompounds(api, databases):
 #             continue
 #
 #     return result
+
 
 def getSoc(socs, finding):
     if socs is not None:
