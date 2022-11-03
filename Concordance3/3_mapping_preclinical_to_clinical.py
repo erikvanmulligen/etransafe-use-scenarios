@@ -12,9 +12,11 @@ from settings import settings
 import mysql.connector
 from Concordance.condordance_utils import getClinicalDatabases, getPreclinicalDatabases, intersection
 
+
 def main():
     api = KnowledgeHubAPI(server=settings['kh']['server'], client_secret=settings['kh']['client_secret'])
-
+    # api = KnowledgeHubAPI(server=settings['kh_test']['server'], client_secret=settings['kh_test']['client_secret'])
+    # status = api.login(settings['kh_test']['user'], settings['kh_test']['password'])
     status = api.login(settings['kh']['user'], settings['kh']['password'])
     if not status:
         print('not successfully logged in')
@@ -22,27 +24,37 @@ def main():
 
     clinical_pas = getClinicalDatabases(api)
     preclinical_pas = getPreclinicalDatabases(api)
-    pas = {**clinical_pas, **preclinical_pas}
 
     db = mysql.connector.connect(host=settings['db']['host'], database=settings['db']['database'], username=settings['db']['user'], password=settings['db']['password'])
+
+    cursor = db.cursor()
+    cursor.execute('CREATE TABLE IF NOT EXISTS mappings (preclinicalFindingCode varchar(20) null, preclinicalSpecimenOrganCode varchar(20) null, clinicalFindingCode varchar(20) null, minDistance int null)')
+    cursor.close()
 
     cursor = db.cursor(prepared=True)
     cursor.execute('delete from mappings')
     db.commit()
 
-    # response = api.SemanticService().mapToClinical('MC:0000126', 'MA:0000145')
-    # print(response)
-    # sys.exit(0)
-
+    print('before getting all finding codes')
     all_clinical_findings = getAllFindingCodes(db, list(clinical_pas.keys()))
+    print(f'after getting all finding codes: {len(all_clinical_findings)} findings')
+    skipped_codes = 0
+    mapped_codes = 0
     all_clinical_codes = [record['findingCode'] for record in all_clinical_findings]
+    print(f'{len(all_clinical_codes)} all_clinical_codes')
     for preclinical_finding in getAllFindingCodes(db, preclinical_pas.keys()):
         mappings = api.SemanticService().mapToClinical(preclinical_finding['findingCode'], preclinical_finding['specimenOrganCode'])
         if mappings is not None and len(mappings) > 0:
             distanceMappings = organizePerDistance(mappings)
             distance, clinical_concepts = getMinimumDistance(preclinical_finding, distanceMappings, all_clinical_codes)
             if distance is not None and clinical_concepts is not None:
+                mapped_codes += len(clinical_concepts)
                 storeMappings(db, preclinical_finding['findingCode'], preclinical_finding['specimenOrganCode'], clinical_concepts, distance)
+            else:
+                skipped_codes += 1
+        else:
+            skipped_codes += 1
+    print(f'{mapped_codes} mapped_codes and {skipped_codes} skipped_codes')
 
 
 def storeMappings(db, preclinical_code, preclinical_specimen_organ_code, clinical_codes, distance):
@@ -54,8 +66,20 @@ def storeMappings(db, preclinical_code, preclinical_specimen_organ_code, clinica
     except mysql.connector.errors.InterfaceError as e:
         print(f'{e}')
 
+
 def getMinimumDistance(preclinical_finding, distanceMappings, matching_codes):
     distances = list(distanceMappings.keys())
+    for distance in distances:
+        distanceCodes = [mapping['code'] for mapping in distanceMappings[distance]]
+        mapping_codes = intersection(distanceCodes, matching_codes)
+        if len(mapping_codes) > 0:
+            return distance, mapping_codes
+    return None, None
+
+
+def getMinimumDistanceOld(preclinical_finding, distanceMappings, matching_codes):
+    distances = list(distanceMappings.keys())
+
     positives = [x for x in distances if x >= 0]
     positives.sort()
     negatives = [abs(x) for x in distances if x < 0]
@@ -85,18 +109,28 @@ def getMinimumDistance(preclinical_finding, distanceMappings, matching_codes):
 def organizePerDistance(mappings):
     result = {}
     for mapping in mappings:
-        if mapping['distance'] not in result:
-            result[mapping['distance']] = []
-        for concept in mapping['concepts']:
-            result[mapping['distance']].append(concept)
+        if mapping['total_penalty'] not in result:
+            result[mapping['total_penalty']] = []
+            if 'to' in mapping:
+                for to in mapping['to']:
+                    for concept in to['concepts']:
+                        result[mapping['total_penalty']].append(concept)
+            else:
+                print(f'no "to" in mapping: {mapping}', sys.stderr)
     return result
 
-def getAllFindingCodes(db, databases):
+
+#
+#   Retrieve all distinct findings from database with a maximum if specified
+#
+def getAllFindingCodes(db, databases, max_records: int = None):
     cursor = db.cursor(prepared=True)
     db_str = ','.join(['"{}"'.format(value) for value in databases])
-    query = f'select distinct findingCode, specimenOrganCode, finding, specimenOrgan from findings where db in ({db_str})'
+    query = f'select distinct findingCode, specimenOrganCode, finding, specimenOrgan from findings where db in ({db_str})' + ('' if max_records is None else f' LIMIT {max_records}')
+    print(query)
     cursor.execute(query)
     return [{'findingCode': record[0], 'specimenOrganCode': record[1], 'finding': record[2], 'specimenOrgan': record[3]} for record in cursor.fetchall()]
+
 
 if __name__ == "__main__":
     main()

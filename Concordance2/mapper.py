@@ -14,54 +14,69 @@ class Mapper:
         self.cacheToClinical = {}
         self.cacheToPreclinical = {}
 
-    def codesToFindings(self, codes):
-        return [{'code': code.split('/')[0], 'organCode': code.split('/')[1]} for code in codes]
-
-    def mapToClinical(self, findings):
+    def mapPreclinicalToClinical(self, finding_ids, all_clinical_codes):
         result = {}
-        for finding in findings:
+        for key in finding_ids:
             map_list = []
-            key = self.getKey(finding)
             if key not in self.cacheToClinical:
-                mappings = self.api.SemanticService().mapToClinical(finding['findingCode'], finding['specimenOrganCode'])
+                organ_id, finding_id = key.split('/')
+                mappings = self.api.SemanticService().mapToClinical(finding_id, organ_id)
+
                 if mappings is not None:
+                    map_list = []
                     for item in mappings:
-                        map_list += [{'name': concept['conceptName'], 'findingCode': concept['conceptCode'], 'distance': int(item['distance'])} for concept in item['concepts']]
-                        # map_list += [{'name': concept['conceptName'], 'findingCode': concept['conceptCode'], 'distance': int(math.fabs(item['distance']))} for concept in item['concepts']]
+                        # only include mappings if the organ matches
+                        if item['distance'] >= 0:
+                            for concept in item['concepts']:
+                                if concept['conceptCode'] in all_clinical_codes:
+                                    map_list += [{concept['conceptCode']: item['distance']}]
+
+                    # fallback: if no mapping is found include all mappings
+                    if len(map_list) == 0:
+                        for item in mappings:
+                            # only include mappings if the organ matches
+                            if item['distance'] >= 0:
+                                for concept in item['concepts']:
+                                    map_list += [{concept['conceptCode']: item['distance']}]
+                    else:
+                        print(f'was able to reduce the mappings from {len(mappings)} to {len(map_list)}')
                     self.cacheToClinical[key] = map_list
                 else:
-                    self.cacheToClinical[key] = []
-            result[key] = self.cacheToClinical[key]
+                    self.cacheToClinical[key] = None
+
+            if self.cacheToClinical[key] is not None:
+                for finding_codes in self.cacheToClinical[key]:
+                    for finding_code in finding_codes:
+                        result[finding_code] = finding_codes[finding_code]
         return result
 
-    def __getOrgan(self, finding):
-        if 'specimenOrganCode' in finding and finding['specimenOrganCode'] is not None:
-            return finding['specimenOrganCode'].split(',')[0]
-        else:
-            return None
-
-    def getKey(self, finding):
-        if 'findingCode' in finding:
-            try:
-                specimenOrganCode = self.__getOrgan(finding)
-                return finding['findingCode'] + ('/' + specimenOrganCode if specimenOrganCode is not None else '')
-            except Exception as e:
-                print(f'error2:{e}')
-        else:
-            try:
-                specimenOrganCode = finding[1].split(',')[0] if finding[1] is not None and len(finding[1]) > 0 else None
-                return finding[0] + ('/' + specimenOrganCode if specimenOrganCode is not None else '')
-            except Exception as e:
-                print(f'error1:{e}')
-
-    def mapToPreclinical(self, findings):
+    def mapClinicalToPreclinical(self, finding_ids, all_preclinical_codes):
         result = {}
-        for finding in findings:
-            map_list = []
-            key = self.getKey(finding)
+        for key in finding_ids:
             if key not in self.cacheToPreclinical:
-                for item in self.api.SemanticService().mapToPreclinical(finding['code']):
-                    map_list += [{'findingCode': concept['conceptCode'], 'specimenOrganCode': concept['organCode']} for concept in item['concepts']]
-                self.cacheToPreclinical[key] = map_list
+                mappings = self.api.SemanticService().mapToPreclinical(key)
+                map_list = []
+                if mappings is not None:
+                    if item['distance'] >= 0:
+                        for concept in item['concepts']:
+                            if concept['conceptCode'] in all_preclinical_codes:
+                                map_list += [{concept['conceptCode']: item['distance']}]
+
+                        # fallback: if no mapping is found include all mappings
+                        if len(map_list) == 0:
+                            for item in mappings:
+                                # only include mappings if the organ matches
+                                if item['distance'] >= 0:
+                                    for concept in item['concepts']:
+                                        map_list += [{concept['conceptCode']: item['distance']}]
+                        self.cacheToPreclinical[key] = map_list
+                else:
+                    self.cacheToPreclinical[key] = None
             result[key] = self.cacheToPreclinical[key]
         return result
+
+    @staticmethod
+    def __min(values):
+        min_positive_value = min([value for value in values if value >= 0], default=None)
+        max_negative_value = max([value for value in values if value < 0], default=None)
+        return min_positive_value if min_positive_value is not None else (max_negative_value if max_negative_value is not None else -1)

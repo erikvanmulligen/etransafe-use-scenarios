@@ -4,8 +4,8 @@
 
     Dit programma vindt alle findings per SOC groep en toont de finding met de afstand uit de mapping tabel
 """
-from Concordance.Concordance3.QueryBuilder import QueryBuilder
-from Concordance.Concordance3.settings import settings
+from Concordance3.QueryBuilder import QueryBuilder
+from Concordance3.settings import settings
 from Concordance.meddra import MedDRA
 import mysql.connector
 

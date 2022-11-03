@@ -1,7 +1,8 @@
-from Concordance.Concordance3.settings import settings
+from Concordance3.settings import settings
 from Concordance.meddra import MedDRA
 import mysql.connector
-from Concordance.Concordance3.concordance_table import getDrugFindings, getGroup
+from Concordance3.concordance_table import getDrugFindings
+
 
 def main():
     name = input('Enter name of group: ')

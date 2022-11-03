@@ -1,5 +1,6 @@
-from src.knowledgehub.api import KnowledgeHubAPI
+from knowledgehub.api import KnowledgeHubAPI
 import argparse
+
 
 def main():
     parser = argparse.ArgumentParser(description='Process parameters for collecting all data from eToxSys')

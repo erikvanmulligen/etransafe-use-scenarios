@@ -21,14 +21,14 @@ def main():
     try:
         db = mysql.connector.connect(host=settings['db']['host'], database=settings['db']['database'], username=settings['db']['user'], password=settings['db']['password'])
     except mysql.connector.errors.ProgrammingError as e:
-        if e.errno == 1049:  # database non existing
+        if e.errno == 1049: # database non existing
             db = mysql.connector.connect(host=settings['db']['host'], username=settings['db']['user'], password=settings['db']['password'])
             cursor = db.cursor()
             cursor.execute(f'CREATE DATABASE `{settings["db"]["database"]}`')
             cursor.execute(f'USE `{settings["db"]["database"]}`')
             cursor.close()
         else:
-            raise e
+            raise(e)
 
     # prepare the tables if non existing
     cursor = db.cursor()
@@ -42,41 +42,47 @@ def main():
     preclinical_compounds = {}
     for database in settings['preclinical']:
         for compound in preclinical_pas[database].getAllCompounds():
-            standardInchiKey = compound['standardInchiKey']
-            if standardInchiKey is not None:
-                inchiGroup = standardInchiKey[0:14]
-                if inchiGroup not in preclinical_compounds:
-                    compound['standardInchiKey'] = standardInchiKey
-                    compound['inchiGroup'] = inchiGroup
-                    preclinical_compounds[inchiGroup] = compound
-                    preclinical_compounds[inchiGroup][database] = []
-                preclinical_compounds[inchiGroup][database].extend(compound['findingIds'])
+            inchiKey = compound['inchiKey'] if 'inchiKey' in compound else None
+            if 'smiles' in compound and compound['smiles'] is not None:
+                response = api.ChemistryService().paStandardize(compound['smiles'], 'preclinical')
+                if response is not None and type(response) == tuple:
+                    inchiKey, smiles = response
+            if inchiKey is not None:
+                inchi_group = inchiKey[0:14]
+                if inchi_group not in preclinical_compounds:
+                    compound['standardInchiKey'] = inchiKey
+                    compound['inchiGroup'] = inchi_group
+                    preclinical_compounds[inchi_group] = compound
+                preclinical_compounds[inchi_group][database] = compound['findingIds']
 
     clinical_compounds = {}
+    not_found = 0
     for database in settings['clinical']:
         for compound in clinical_pas[database].getAllCompounds():
-            standardInchiKey = compound['standardInchiKey']
-            if standardInchiKey is not None:
-                inchiGroup = standardInchiKey[0:14]
-                if inchiGroup not in clinical_compounds:
-                    compound['standardInchiKey'] = standardInchiKey
-                    compound['inchiGroup'] = inchiGroup
-                    clinical_compounds[inchiGroup] = compound
-                    clinical_compounds[inchiGroup][database] = []
-                clinical_compounds[inchiGroup][database].extend(compound['findingIds'])
+            inchiKey = compound['inchiKey']
+            if inchiKey is not None:
+                inchi_group = inchiKey[0:14]
+                if inchiKey not in clinical_compounds:
+                    compound['standardInchiKey'] = inchiKey
+                    compound['inchiGroup'] = inchiKey[0:14]
+                    clinical_compounds[inchi_group] = compound
+                clinical_compounds[inchi_group][database] = compound['findingIds']
+            else:
+                not_found += 1
 
-    # find the compounds that are both preclinical and clinical present and store these in the database
+    print(f'no inchi_key for {not_found} compounds')
+
+    # find the compounds that are both preclinically and clinically present and store these in the database
     common_compounds = []
     for pc in preclinical_compounds:
         preclinical_compound = preclinical_compounds[pc]
         for cc in clinical_compounds:
             clinical_compound = clinical_compounds[cc]
-            if preclinical_compound['standardInchiKey'] == clinical_compound['standardInchiKey']:
-                if preclinical_compound['standardInchiKey'] not in common_compounds:
+            if preclinical_compound['inchiGroup'] == clinical_compound['inchiGroup']:
+                if preclinical_compound['inchiGroup'] not in common_compounds:
                     common_compound = {
-                        'standardInchiKey': preclinical_compound['standardInchiKey'],
-                        'inchiGroup': preclinical_compound['inchiGroup'],
-                        'inchiKeys': set(),
+                        'inchi_group': preclinical_compound['inchiGroup'],
+                        'inchi_keys': set(),
                         'names': set(),
                     }
                     for database in settings['preclinical']:
@@ -86,19 +92,24 @@ def main():
 
                     common_compounds.append(common_compound)
                 else:
-                    common_compound = common_compounds['standardInchiKey']
+                    common_compound = common_compounds['inchiGroup']
 
+                if preclinical_compound['standardInchiKey'] is not None:
+                    common_compound['inchi_keys'].add(preclinical_compound['standardInchiKey'])
                 if preclinical_compound['name'] is not None:
                     common_compound['names'].add(preclinical_compound['name'])
-                common_compound['inchiKeys'].add(preclinical_compound['standardInchiKey'])
+                if clinical_compound['standardInchiKey'] is not None:
+                    common_compound['inchi_keys'].add(clinical_compound['standardInchiKey'])
                 if clinical_compound['name'] is not None:
                     common_compound['names'].add(clinical_compound['name'])
-                common_compound['inchiKeys'].add(clinical_compound['standardInchiKey'])
 
                 # copy the finding ids of the different databases
                 for database in settings['preclinical']:
                     if database in preclinical_compound:
-                        common_compound[database].extend(preclinical_compound[database])
+                        if database == 'Preclinical':
+                            print(preclinical_compound[database])
+                        else:
+                            common_compound[database].extend(preclinical_compound[database])
                 for database in settings['clinical']:
                     if database in clinical_compound:
                         common_compound[database].extend(clinical_compound[database])
@@ -118,20 +129,20 @@ def main():
         try:
             cursor = db.cursor(prepared=True)
             cursor.execute('INSERT INTO drugs (inchi_group, names, inchi_keys, nr_inchi_keys) VALUES (%s, %s, %s, %s)',
-                           (common_compound['inchiGroup'],
+                           (common_compound['inchi_group'],
                             ', '.join(common_compound['names']),
-                            ', '.join(common_compound['inchiKeys']),
-                            len(common_compound['inchiKeys'])))
+                            ', '.join(common_compound['inchi_keys']),
+                            len(common_compound['inchi_keys'])))
             db.commit()
 
             for database in settings['preclinical']:
                 for finding_id in common_compound[database]:
                     cursor.execute('INSERT INTO finding_ids (inchi_group, db, finding_id) VALUES (%s, %s, %s)',
-                                   (common_compound['inchiGroup'], database, finding_id))
+                                   (common_compound['inchi_group'], database, finding_id))
             for database in settings['clinical']:
                 for finding_id in common_compound[database]:
                     cursor.execute('INSERT INTO finding_ids (inchi_group, db, finding_id) VALUES (%s, %s, %s)',
-                                   (common_compound['inchiGroup'], database, finding_id))
+                                   (common_compound['inchi_group'], database, finding_id))
             db.commit()
 
         except mysql.connector.errors.InterfaceError as e:

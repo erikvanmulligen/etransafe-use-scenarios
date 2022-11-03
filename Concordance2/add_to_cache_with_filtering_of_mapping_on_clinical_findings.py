@@ -39,8 +39,10 @@ def main():
 
     if args.clear:
         cursor = db.cursor(prepared=True)
+
         cursor.execute("DELETE FROM findings")
         cursor.execute("DELETE FROM drugs")
+
         db.commit()
 
     mapper = Mapper(api)
@@ -56,53 +58,73 @@ def main():
 def store_compounds(api, db, mapper, preclinical_databases, clinical_databases):
 
     all_grouped_compounds = {}
-    for database in preclinical_databases:
-        create_compound(api, database, all_grouped_compounds, False)
+    all_clinical_codes = set()
+    all_preclinical_codes = set()
 
-    # collect all clinical codes
+    # build a list of all clinical codes
     for database in clinical_databases:
         create_compound(api, database, all_grouped_compounds, True)
 
+    for database in preclinical_databases:
+        create_compound(api, database, all_grouped_compounds, False)
 
-    for group_inchi_key in all_grouped_compounds:
-        if all_grouped_compounds[group_inchi_key].is_valid(api, mapper):
-            print(f'{group_inchi_key}:{all_grouped_compounds[group_inchi_key]}')
-            all_grouped_compounds[group_inchi_key].store(db)
+    all_valid_compounds = [all_grouped_compounds[group_inchi_key] for group_inchi_key in all_grouped_compounds if all_grouped_compounds[group_inchi_key].has_preclinical_and_clinical()]
+
+    for compound in all_valid_compounds:
+        # print(f'valid compound {compound}')
+        compound.store_drug_info(db)
+
+    # for group_key in all_valid_compounds:
+    #     compound = all_grouped_compounds[group_key]
+    #     for preclinical_code in compound.preclinical_codes(api):
+    #         all_preclinical_codes.add(preclinical_code)
+    #     for clinical_code in compound.clinical_codes(api):
+    #         all_clinical_codes.add(clinical_code)
+    # print(all_clinical_codes)
+    #
+    # for group_inchi_key in all_grouped_compounds:
+    #     if all_grouped_compounds[group_inchi_key].is_valid(api, mapper, all_clinical_codes, all_preclinical_codes):
+    #         print(f'{group_inchi_key}:{all_grouped_compounds[group_inchi_key]}')
+    #         all_grouped_compounds[group_inchi_key].store(db)
 
 
-def create_compound(api, db, all_grouped_compounds, clinical_flag):
-    print(f'processing {db}')
+def create_compound(api, database, all_grouped_compounds, clinical_flag):
+    print(f'processing {database}')
 
-    # get a list of preclinical compounds
+    compounds = getPrimitiveAdapter(api, database).getAllCompounds(maximum=100)
     cnt = 0
-    compounds = getPrimitiveAdapter(api, db).getAllCompounds()
+    # get a list of preclinical compounds
     for pc_compound in compounds:
         cnt += 1
+        print(f'{cnt} of {len(compounds)}')
         # get the standardized inchi_key
+
         response = None
+
         if pc_compound['smiles'] is not None:
             response = api.ChemistryService().paStandardize(pc_compound['smiles'], 'preclinical')
         elif pc_compound['name'] is not None:
             response = api.ChemistryService().paStandardize(pc_compound['name'], 'clinical')
         standardized_inchi_key = response[0] if response is not None else pc_compound['inchiKey']
 
+        if pc_compound['inchiKey'] is None:
+            pc_compound['inchiKey'] = standardized_inchi_key
+
         if standardized_inchi_key is not None:
             group_inchi_key = standardized_inchi_key[0:14]
             if len(group_inchi_key) == 14:
                 if group_inchi_key not in all_grouped_compounds:
-                    all_grouped_compounds[group_inchi_key] = Compound(group_inchi_key)
-                else:
-                    print(f'compound {group_inchi_key} already present: {cnt} of {len(compounds)}')
+                    all_grouped_compounds[group_inchi_key] = Compound(database=database, inchi_group=group_inchi_key)
 
                 compound = all_grouped_compounds[group_inchi_key]
                 compound.inchi_key(standardized_inchi_key)
                 compound.name(pc_compound['name'])
                 if clinical_flag is True:
                     compound.clinical_count()
-                    compound.clinical_findings(db, pc_compound['findingIds'])
+                    compound.clinical_findings(database, pc_compound['findingIds'])
                 else:
                     compound.preclinical_count()
-                    compound.preclinical_findings(db, pc_compound['findingIds'])
+                    compound.preclinical_findings(database, pc_compound['findingIds'])
 
 
 if __name__ == "__main__":

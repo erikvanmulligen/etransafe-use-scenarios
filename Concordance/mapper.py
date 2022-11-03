@@ -26,7 +26,8 @@ class Mapper:
                 mappings = self.api.SemanticService().mapToClinical(finding['findingCode'], finding['specimenOrganCode'])
                 if mappings is not None:
                     for item in mappings:
-                        map_list += [{'name': concept['conceptName'], 'findingCode': concept['conceptCode'], 'distance': int(math.fabs(item['distance']))} for concept in item['concepts']]
+                        map_list += [{'name': concept['conceptName'], 'findingCode': concept['conceptCode'], 'distance': int(item['distance'])} for concept in item['concepts']]
+                        # map_list += [{'name': concept['conceptName'], 'findingCode': concept['conceptCode'], 'distance': int(math.fabs(item['distance']))} for concept in item['concepts']]
                     self.cacheToClinical[key] = map_list
                 else:
                     self.cacheToClinical[key] = []
@@ -59,7 +60,7 @@ class Mapper:
             map_list = []
             key = self.getKey(finding)
             if key not in self.cacheToPreclinical:
-                for item in self.api.SemanticService().mapToPreclinical(finding['code']):
+                for item in self.api.SemanticService().mapToPreclinical(key):
                     map_list += [{'findingCode': concept['conceptCode'], 'specimenOrganCode': concept['organCode']} for concept in item['concepts']]
                 self.cacheToPreclinical[key] = map_list
             result[key] = self.cacheToPreclinical[key]

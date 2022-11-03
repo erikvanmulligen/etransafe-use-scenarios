@@ -8,8 +8,9 @@ import sys
 import mysql.connector
 
 from Concordance.condordance_utils import getDrugsMapping, getClinicalDatabases, getPreclinicalDatabases, getSocs, getSocDrugFindings, getMedDRA_PTs, getPTDrugFindings, getNamePT, getAllDrugFindings, \
-    getAllPTFindings, getAllPreClinicalClinicalPTs
+    getAllPTFindings, getAllPreClinicalClinicalPTs, getAllPreclinicalClinicalDistances
 from Concordance.mapper import Mapper
+from Concordance.meddra import MedDRA
 
 
 def main():
@@ -22,6 +23,13 @@ def main():
     parser.add_argument('-dbpass', required=True, help='mysql database password')
     parser.add_argument('-drug_mappings', required=False, help='password')
     args = parser.parse_args()
+
+    db = mysql.connector.connect(host=args.host, database=args.database, username=args.dbuser, password=args.dbpass)
+    all_preclinical_clinical_distances = getAllPreclinicalClinicalDistances(db=db, tables=['preclinical_meddra','clinical_meddra'])
+
+    meddra = MedDRA(username=args.dbuser, password=args.dbpass)
+    print(meddra.getHLT('10010726'))
+
 
     api = KnowledgeHubAPI(server='DEV', client_secret='3db5a6d7-4694-48a4-8a2e-e9c30d78f9ab')
 
@@ -46,7 +54,6 @@ def main():
 
     print(f'#drugs found: {len(drugs.keys())}')
 
-    db = mysql.connector.connect(host=args.host, database=args.database, username=args.dbuser, password=args.dbpass)
 
     ClinicalDatabases = getClinicalDatabases(api);
     PreclinicalDatabases = getPreclinicalDatabases(api)

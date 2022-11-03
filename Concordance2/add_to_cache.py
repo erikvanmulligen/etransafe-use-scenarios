@@ -6,65 +6,28 @@
     Erik M. van Mulligen
 """
 import argparse
-import json
 import sys
 import mysql.connector
+
+from Concordance2.mapper import Mapper
+from Concordance2.Compound import Compound
 from knowledgehub.api import KnowledgeHubAPI
-from Concordance.condordance_utils import getPreclinicalDatabases, getClinicalDatabases
-
-
-def storeCompoundsInDatabase(db, paName, compounds, preclinical):
-
-    drug_insert = '''INSERT INTO drugs (id, db, compoundIdentifier, name, inchiKey, standardizedInchiKey, smiles, standardizedSmiles, preclinical) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)'''
-    finding_insert = '''INSERT INTO drugFindings (id, db, findingId) VALUES(?, ?, ?)'''
-    print(f'store {len(compounds)} {"preclinical" if preclinical else "clinical"} compounds from {paName} in database', flush=True)
-
-    for compound in compounds:
-        cursor = db.cursor(prepared=True)
-        cursor.execute(drug_insert, (compound['id'], paName, compound['compoundIdentifier'], compound['name'], compound['inchiKey'], compound['standardizedInchiKey'], compound['smiles'], compound['standardizedSmiles'], preclinical))
-
-        cursor.executemany(finding_insert, [(compound['id'], paName, findingId) for findingId in compound['findingIds']])
-        db.commit()
-        cursor.close()
-
-
-def getCompounds(connection, databases):
-    result = []
-    for database in databases:
-        cursor = connection.cursor()
-        cursor.execute(f'SELECT id, db, compoundIdentifier, name, inchiKey, standardizedInchiKey, smiles, standardizedSmiles, preclinical FROM DRUGS WHERE db = "{database}"')
-        records = cursor.fetchall()
-        for record in records:
-            result.append({'id': record[0], 'db': record[1], 'compoundIdentifier': record[2], 'name': record[3],
-                           'inchiKey': record[4], 'standardizedInchiKey': record[5], 'smiles': record[6],
-                           'standardizedSmiles': record[7], 'preclinical': record[8]})
-    return result
-
-
-def groupCompounds(records):
-    result = {}
-    for record in records:
-        if record['standardizedInchiKey'] is not None:
-            key = record['standardizedInchiKey'][0:14]
-            if key not in result:
-                result[key] = []
-            result[key].append(record)
-    return result
+from Concordance.condordance_utils import getPrimitiveAdapter
 
 
 def main():
     argParser = argparse.ArgumentParser(description='Process parameters for collecting compounds from primitive adapter')
-    argParser.add_argument('-username', required=True, help='username')
-    argParser.add_argument('-password', required=True, help='password')
-    argParser.add_argument('-db_username', required=True, help='database username')
-    argParser.add_argument('-db_password', required=True, help='database password')
-    argParser.add_argument('-db_db', required=True, help='database name')
-    argParser.add_argument('-db_server', required=True, help='database server')
-    argParser.add_argument('-drugs', required=True, help='filename containing drugs')
-    argParser.add_argument('-clear', required=False, action='store_true', help='clear database')
+    argParser.add_argument('-username', help='username', default='erik.mulligen')
+    argParser.add_argument('-password', help='password', default='Crosby99!')
+    argParser.add_argument('-db_username', help='database username', default='root')
+    argParser.add_argument('-db_password', help='database password', default='crosby9')
+    argParser.add_argument('-db_db', help='database name', default='concordance-medline')
+    argParser.add_argument('-db_server', help='database server', default='localhost')
+    argParser.add_argument('-clear', action='store_true', help='clear database', default=True)
     args = argParser.parse_args()
 
-    api = KnowledgeHubAPI(server='DEV', client_secret='3db5a6d7-4694-48a4-8a2e-e9c30d78f9ab')
+    #api = KnowledgeHubAPI(server='DEV', client_secret='3db5a6d7-4694-48a4-8a2e-e9c30d78f9ab')
+    api = KnowledgeHubAPI(server='TEST', client_secret='39c644b3-1f23-4d94-a71f-e0fb43ebd760')
 
     status = api.login(args.username, args.password)
     if status:
@@ -72,94 +35,74 @@ def main():
     else:
         sys.exit(0)
 
-    preclinicalDatabases = getPreclinicalDatabases(api)
-    clinicalDatabases = getClinicalDatabases(api)
-
     db = mysql.connector.connect(host=args.db_server, database=args.db_db, user=args.db_username, password=args.db_password)
 
-    # if args.clear:
-    #     cursor = db.cursor(prepared=True)
-    #     cursor.execute("DELETE FROM drugFindings")
-    #     cursor.execute("DELETE FROM drugs")
-    #     db.commit()
-    #
-    #
-    # for database in preclinicalDatabases:
-    #     print(f'processing {database}')
-    #     pc_compounds = preclinicalDatabases[database].getAllCompounds()
-    #     records = []
-    #
-    #     for pc_compound in pc_compounds:
-    #         if pc_compound['smiles'] is not None:
-    #             response = api.ChemistryService().paStandardize(pc_compound['smiles'], 'preclinical')
-    #         elif pc_compound['name'] is not None:
-    #             response = api.ChemistryService().paStandardize(pc_compound['name'], 'clinical')
-    #         else:
-    #             response = None
-    #
-    #         if response is not None:
-    #             pc_compound['standardizedInchiKey'] = response[0]
-    #             pc_compound['standardizedSmiles'] = response[1]
-    #             records.append(pc_compound)
-    #         # pc_compound['standardizedInchiKey'] = pc_compound['inchiKey']
-    #         # pc_compound['standardizedSmiles'] = pc_compound['smiles']
-    #         # records.append(pc_compound)
-    #
-    #     storeCompoundsInDatabase(db, database, records, True)
-    #
-    # # store compounds from clinical databases
-    # for database in clinicalDatabases:
-    #     print(f'processing {database}')
-    #     compounds = clinicalDatabases[database].getAllCompounds()
-    #     records = []
-    #     for cl_compound in compounds:
-    #         cl_compound['standardizedInchiKey'] = cl_compound['inchiKey']
-    #         cl_compound['standardizedSmiles'] = cl_compound['smiles']
-    #         records.append(cl_compound)
-    #
-    #     storeCompoundsInDatabase(db, database, records, False)
+    if args.clear:
+        cursor = db.cursor(prepared=True)
+        cursor.execute("DELETE FROM findings")
+        cursor.execute("DELETE FROM drugs")
+        db.commit()
 
-    preclinicalCompounds = getCompounds(db, preclinicalDatabases)
-    groupedPreclinicalCompounds = groupCompounds(preclinicalCompounds)
-    clinicalCompounds = getCompounds(db, clinicalDatabases)
-    groupedClinicalCompounds = groupCompounds(clinicalCompounds)
-    drugs_mapping = {}
-    for groupedPreclinicalCompound in groupedPreclinicalCompounds:
-        if groupedPreclinicalCompound in groupedClinicalCompounds:
-            print(f'{groupedPreclinicalCompound} has {len(groupedPreclinicalCompounds[groupedPreclinicalCompound])} preclinical compounds and {len(groupedClinicalCompounds[groupedPreclinicalCompound])} clinical compounds')
-            if groupedPreclinicalCompound not in drugs_mapping:
-                drugs_mapping[groupedPreclinicalCompound] = {
-                    'inchiKey': groupedPreclinicalCompound,
-                    'clinicalName': getName(groupedClinicalCompounds[groupedPreclinicalCompound]),
-                    'preclinicalName': getName(groupedPreclinicalCompounds[groupedPreclinicalCompound]),
-                }
-                for compound in groupedPreclinicalCompounds[groupedPreclinicalCompound]:
-                    for database in preclinicalDatabases:
-                        if database == compound['db']:
-                            if database not in drugs_mapping[groupedPreclinicalCompound]:
-                                drugs_mapping[groupedPreclinicalCompound][database] = []
-                            drugs_mapping[groupedPreclinicalCompound][database].extend(getFindings(db, compound['id'], compound['db']))
+    mapper = Mapper(api)
 
-                for compound in groupedClinicalCompounds[groupedPreclinicalCompound]:
-                    for database in clinicalDatabases:
-                        if database == compound['db']:
-                            if database not in drugs_mapping[groupedPreclinicalCompound]:
-                                drugs_mapping[groupedPreclinicalCompound][database] = []
-                            drugs_mapping[groupedPreclinicalCompound][database].extend(getFindings(db, compound['id'], compound['db']))
-
-    with open(args.drugs, 'w') as drug_file:
-        drug_file.write(json.dumps(drugs_mapping))
+    #store_compounds(api, db, mapper, ['eToxSys'], ['Medline', 'Faers', 'DailyMed', 'ClinicalTrials'])
+    store_compounds(api, db, mapper, ['eToxSys'], ['Medline'])
 
 
-def getFindings(connection, id, database):
-    cursor = connection.cursor()
-    cursor.execute(f'SELECT findingId FROM DRUGFINDINGS WHERE id = {id} AND db = "{database}"')
-    return [record[0] for record in cursor.fetchall()]
+'''
+    This method stores the compounds in the database for which the inchiGroup (first 14 characters of the inchi_key) match and which
+    have preclinical and clinical findings. (Note that the findingIds are not the same as findingCodes and that we store findingCodes)
+'''
+def store_compounds(api, db, mapper, preclinical_databases, clinical_databases):
+
+    all_grouped_compounds = {}
+    for database in preclinical_databases:
+        create_compound(api, database, all_grouped_compounds, False)
+
+    # collect all clinical codes
+    for database in clinical_databases:
+        create_compound(api, database, all_grouped_compounds, True)
 
 
-def getName(compounds):
-    for compound in compounds:
-        return compound['name'] if compound['name'] is not None else compound['compoundIdentifier']
+    for group_inchi_key in all_grouped_compounds:
+        if all_grouped_compounds[group_inchi_key].is_valid(api, mapper):
+            print(f'{group_inchi_key}:{all_grouped_compounds[group_inchi_key]}')
+            all_grouped_compounds[group_inchi_key].store(db)
+
+
+def create_compound(api, db, all_grouped_compounds, clinical_flag):
+    print(f'processing {db}')
+
+    # get a list of preclinical compounds
+    cnt = 0
+    compounds = getPrimitiveAdapter(api, db).getAllCompounds()
+    for pc_compound in compounds:
+        cnt += 1
+        # get the standardized inchi_key
+        response = None
+        if pc_compound['smiles'] is not None:
+            response = api.ChemistryService().paStandardize(pc_compound['smiles'], 'preclinical')
+        elif pc_compound['name'] is not None:
+            response = api.ChemistryService().paStandardize(pc_compound['name'], 'clinical')
+        standardized_inchi_key = response[0] if response is not None else pc_compound['inchiKey']
+
+        if standardized_inchi_key is not None:
+            group_inchi_key = standardized_inchi_key[0:14]
+            if len(group_inchi_key) == 14:
+                if group_inchi_key not in all_grouped_compounds:
+                    all_grouped_compounds[group_inchi_key] = Compound(group_inchi_key)
+                else:
+                    print(f'compound {group_inchi_key} already present: {cnt} of {len(compounds)}')
+
+                compound = all_grouped_compounds[group_inchi_key]
+                compound.inchi_key(standardized_inchi_key)
+                compound.name(pc_compound['name'])
+                if clinical_flag is True:
+                    compound.clinical_count()
+                    compound.clinical_findings(db, pc_compound['findingIds'])
+                else:
+                    compound.preclinical_count()
+                    compound.preclinical_findings(db, pc_compound['findingIds'])
 
 
 if __name__ == "__main__":

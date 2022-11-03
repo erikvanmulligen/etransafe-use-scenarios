@@ -31,6 +31,25 @@ end
 
 ```` 
 
+**17 maart 2022**
+- opnieuw aanmaken van database
+  - create_drug_mapping_with_part_inchikey -usernam tester -password tester -db_server localhost -db_db concordance -db_username root -db_password crosby9 -drugs ../data/drugs_mapping.20220317.json
+  - create_local_cache_db -username tester -password tester -clear -db_server localhost -db_db concordance -db_user root -db_pass crosby9 -drugs ../data/drugs_mapping.20220317.json
+  - add_pt_to_db
+    - opslag van socs, hlts en hlgts bij een preferred term
+
+**18 maart 2022**
+- er kunnen bij een pt meerdere socs voorkomen. Ik koos altijd de eerste, dat leidt tot rare situaties (pts die groter zijn dan de bijbehorende soc)
+- nu alle socs (hlts, hlgts) opgehaald per pt en die allemaal aflopen
+- nog doen: niet vergelijken of de pt zowel klinisch als preklinisch voorkomt, maar of een soc gevonden bij de preklinische termen geassocieerd met een compound ook bij de socs geassocieerd met klinische termen voorkomt
+- er komen een aantal LLT termen voor: 10013908 ipv preferred term
+
+**19 mei 2022**
+- kijken hoe het zit met de afstand bij bijvoorbeeld vascular disorders
+
+<code>6                                  Vascular disorders  0            -17            21     77  114  35   52 0.69         0.31         1.00 1.00 0.00</code>
+
+- maken script om per group te kijken welke findings er toe behoren en per match te kijken wat de afstand is
 
 
  

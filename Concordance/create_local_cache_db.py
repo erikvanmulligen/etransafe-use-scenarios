@@ -5,15 +5,16 @@
     The idea is that only findings are included that are treatment related
 """
 import argparse
+import json
+
 from knowledgehub.api import KnowledgeHubAPI
 import sys
 import mysql.connector
 from dateutil import parser
 
 from Concordance import condordance_utils
-from Concordance.condordance_utils import getDrugs, getSoc, getPreclinicalDatabases, getClinicalDatabases
-from Concordance.mapper import Mapper
-
+from Concordance2.condordance_utils import getDrugs, getSoc, getPreclinicalDatabases, getClinicalDatabases
+from Concordance2.mapper import Mapper
 
 def main():
     argParser = argparse.ArgumentParser(description='Process parameters for collecting findings from primitive adapter')
@@ -45,25 +46,32 @@ def main():
 
     print('populate database')
     drugs = getDrugs(api, args.drugs)
+    save_drugs = {}
     for i in drugs:
         drug = drugs[i]
-        print(f'processing {drug["clinicalName"]}...')
-        preclinical_findings = []
-        clinical_findings = []
 
-        preclinicalDatabases = getPreclinicalDatabases(api)
+        print(f'processing {drug["clinicalName"]}...')
+
         clinicalDatabases = getClinicalDatabases(api)
 
-        for database in preclinicalDatabases:
-            print('with findings from...' + database)
-            preclinical_findings = preclinicalDatabases[database].getAllFindingByIds(drug[database])
-            storeFindings(db, table="preclinical_findings", findings=preclinical_findings, treatmentRelated=True)
+        database = 'eToxSys'
+        print('with findings from...' + database)
+        preclinical_findings = api.eToxSys().getAllFindingByIds(drug[database])
+        if len(preclinical_findings) > 0:
+            storeFindings(db, table="preclinical_findings", findings=preclinical_findings, database=database, inchiKey=drug['inchiKey'])
 
-        for database in clinicalDatabases:
-            print('with findings from...' + database)
-            if database in drug and drug[database] is not None:
-                clinical_findings = clinicalDatabases[database].getAllFindingByIds(drug[database])
-                storeFindings(db, table="clinical_findings", findings=clinical_findings, treatmentRelated=False)
+            for database in clinicalDatabases:
+                print('with findings from...' + database)
+                if database in drug and drug[database] is not None:
+                    clinical_findings = clinicalDatabases[database].getAllFindingByIds(drug[database])
+                    storeFindings(db, table="clinical_findings", findings=clinical_findings, database=database, inchiKey=drug['inchiKey'])
+            save_drugs[i] = drug
+        else:
+            print('skip drug %s' % (drug['inchiKey']))
+
+    # some drugs can be excluded due to missing HPATH findings in eToxSys
+    with open(args.drugs, 'w') as drug_file:
+        drug_file.write(json.dumps(save_drugs))
 
     print('find SOCS for clinical findings unknown SOCs to the database')
     cursor = db.cursor()
@@ -114,7 +122,7 @@ def main():
     mapper = Mapper(api)
     cursor = db.cursor()
 
-    cursor.execute("SELECT DISTINCT findingCode, specimenOrganCode FROM preclinical_findings WHERE mapped = -1")
+    cursor.execute("SELECT DISTINCT findingCode, specimenOrganCode FROM preclinical_findings")
     normalizePreclinicalFields = condordance_utils.normalizePreclinicalFields(cursor.fetchall())
 
     total = len(normalizePreclinicalFields)
@@ -130,7 +138,11 @@ def main():
 
         present = len(mapped_clinical_findings[preclinical_code])
         values = [item['distance'] for item in mapped_clinical_findings[preclinical_code]]
-        value = min(values) if len(values) > 0 else -1
+
+        # find the minimum positive value; if not existing take maximum negative value
+        min_positive_value = min([value for value in values if value >= 0], default=None)
+        max_negative_value = max([value for value in values if value < 0], default=None)
+        value = min_positive_value if min_positive_value is not None else (max_negative_value if max_negative_value is not None else -1)
 
         if normalizePreclinicalField['findingCode'] is not None and len(normalizePreclinicalField['findingCode']) > 0:
             if normalizePreclinicalField['specimenOrganCode'] is not None:
@@ -152,12 +164,12 @@ def main():
         db.commit()
 
 
-def storeFindings(db, table, findings, treatmentRelated):
+def storeFindings(db, table, findings, database, inchiKey):
     cursor = db.cursor(prepared=True)
     sql = "INSERT INTO " + table + " (id, findingIdentifier, specimenOrgan, specimenOrganCode, specimenOrganVocabulary, finding, " \
                                    "findingCode, findingVocabulary, findingType, severity, observation, frequency, dose, doseUnit, timepoint, timepointUnit, " \
-                                   "treatmentRelated, compoundId, studyId, createdDate, modifiedDate, sex) " \
-                                   "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                                   "treatmentRelated, compoundId, studyId, createdDate, modifiedDate, sex, db, inchiKey) " \
+                                   "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     records = []
     for finding in findings:
         finding = finding['FINDING']
@@ -169,7 +181,7 @@ def storeFindings(db, table, findings, treatmentRelated):
                                 finding['specimenOrganVocabulary'], finding['finding'], finding['findingCode'], finding['findingVocabulary'],
                                 finding['findingType'], finding['severity'], finding['observation'], finding['frequency'], finding['dose'], finding['doseUnit'],
                                 finding['timepoint'], finding['timepointUnit'], finding['treatmentRelated'] is not False and finding['treatmentRelated'] is not None, finding['compoundId'], finding['studyId'],
-                                convertTimestamp(finding['createdDate']), convertTimestamp(finding['modifiedDate']), finding['sex']))
+                                convertTimestamp(finding['createdDate']), convertTimestamp(finding['modifiedDate']), finding['sex'], database, inchiKey))
             else:
                 print(f'skip control group {finding["dose"]} or non treatment related finding {finding["treatmentRelated"]}')
 
@@ -180,10 +192,8 @@ def storeFindings(db, table, findings, treatmentRelated):
         print(f'{e}')
 
 
-
-
 def convertTimestamp(timestampStr):
-    return parser.isoparse(timestampStr)
+    return parser.isoparse(timestampStr) if timestampStr is not None else None
 
 
 if __name__ == "__main__":

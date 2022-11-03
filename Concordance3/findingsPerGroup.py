@@ -1,7 +1,7 @@
-from Concordance.Concordance3.settings import settings
+from Concordance3.settings import settings
 from Concordance.meddra import MedDRA
 import mysql.connector
-from Concordance.Concordance3.concordance_table import getGroup
+from Concordance3.concordance_table import getGroup
 
 
 def process():
